@@ -5,7 +5,7 @@ CREATE TABLE Carga (
     order_id VARCHAR(50), order_item_id VARCHAR(50),
     purchase_date DATETIME, payments_date DATETIME,
     buyer_email VARCHAR(100), buyer_name VARCHAR(100),
-    cpf VARCHAR(14), buyer_phone_number VARCHAR(20),
+    cpf VARCHAR(20), buyer_phone_number VARCHAR(20),
     sku VARCHAR(50), product_name VARCHAR(100),
     quantity_purchased INT, currency VARCHAR(10),
     item_price DECIMAL(10,2), ship_service_level VARCHAR(50),
@@ -19,8 +19,10 @@ CREATE TABLE Carga (
 CREATE TABLE CargaFornecedor (sku VARCHAR(50), quantidade_recebida INT);
 
 CREATE TABLE Clientes (
-    cpf VARCHAR(14) PRIMARY KEY,
-    nome VARCHAR(100), email VARCHAR(100), telefone VARCHAR(20)
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    cpf VARCHAR(20) NOT NULL,
+    nome VARCHAR(100), email VARCHAR(100), telefone VARCHAR(20),
+    UNIQUE KEY uk_clientes_cpf (cpf)
 );
 
 CREATE TABLE Produtos (
@@ -30,7 +32,7 @@ CREATE TABLE Produtos (
 
 CREATE TABLE Pedidos (
     id_pedido VARCHAR(50) PRIMARY KEY,
-    cpf_cliente VARCHAR(14),
+    cpf_cliente VARCHAR(20),
     data_compra DATETIME,
     status_atendimento VARCHAR(30) DEFAULT 'PENDENTE',
     FOREIGN KEY (cpf_cliente) REFERENCES Clientes(cpf)
@@ -63,7 +65,7 @@ CREATE PROCEDURE Separar_Dados_Carga()
 BEGIN
     DECLARE v_order_id VARCHAR(50);
     DECLARE v_order_item_id VARCHAR(50);
-    DECLARE v_cpf VARCHAR(50);
+    DECLARE v_cpf VARCHAR(20);
     DECLARE v_sku VARCHAR(50);
     DECLARE v_buyer_name VARCHAR(100);
     DECLARE v_buyer_email VARCHAR(100);
@@ -90,21 +92,25 @@ BEGIN
 
         IF fim_arquivo THEN LEAVE meu_loop; END IF;
 
-        INSERT IGNORE INTO Clientes (cpf, nome, email, telefone)
-        VALUES (v_cpf, v_buyer_name, v_buyer_email, v_buyer_phone_number);
+        SET v_cpf = NULLIF(TRIM(v_cpf), '');
 
-        INSERT IGNORE INTO Produtos (sku, nome, preco, estoque_atual)
-        VALUES (v_sku, v_product_name, v_item_price, 0);
+        IF v_cpf IS NOT NULL THEN
+            INSERT IGNORE INTO Clientes (cpf, nome, email, telefone)
+            VALUES (v_cpf, v_buyer_name, v_buyer_email, v_buyer_phone_number);
 
-        INSERT IGNORE INTO Pedidos (id_pedido, cpf_cliente, data_compra)
-        VALUES (v_order_id, v_cpf, v_purchase_date);
+            INSERT IGNORE INTO Produtos (sku, nome, preco, estoque_atual)
+            VALUES (v_sku, v_product_name, v_item_price, 0);
 
-        INSERT IGNORE INTO ItensPedido (id_pedido, id_item, sku, quantidade, preco_unitario)
-        VALUES (v_order_id, v_order_item_id, v_sku, v_quantity_purchased, v_item_price);
+            INSERT IGNORE INTO Pedidos (id_pedido, cpf_cliente, data_compra)
+            VALUES (v_order_id, v_cpf, v_purchase_date);
+
+            INSERT IGNORE INTO ItensPedido (id_pedido, id_item, sku, quantidade, preco_unitario)
+            VALUES (v_order_id, v_order_item_id, v_sku, v_quantity_purchased, v_item_price);
+        END IF;
     END LOOP;
 
     CLOSE cursor_carga;
-    TRUNCATE TABLE Carga;
+    DELETE FROM Carga WHERE cpf IS NOT NULL AND TRIM(cpf) <> '';
 END $$
 
 CREATE PROCEDURE Processar_Estoque()
@@ -193,5 +199,3 @@ BEGIN
 END $$
 
 DELIMITER ;
-
-
